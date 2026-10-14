@@ -11,5 +11,5 @@ window.OFFLINERUPEE_FIREBASE_CONFIG = {
   region: "asia-south1",
   // URL of the self-hosted API in server/ (e.g. https://offlinerupee-api.onrender.com).
   // When set, it replaces the Cloud Functions, so the project can stay on the Spark plan.
-  apiBaseUrl: "",
+  apiBaseUrl: "https://offlinerupee-api.onrender.com",
 };
