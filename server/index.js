@@ -54,7 +54,11 @@ async function requireAuth(req) {
   try {
     const decoded = await admin.auth().verifyIdToken(match[1], true);
     return decoded.uid;
-  } catch {
+  } catch (error) {
+    console.error("Firebase ID token verification failed", {
+      code: error.code || error.name || "unknown",
+      message: error.message || "No error message",
+    });
     throw new ApiError("unauthenticated", "Your session has expired. Sign in again.");
   }
 }
