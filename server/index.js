@@ -373,7 +373,12 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "16kb" }));
 
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/health", (_req, res) => res.json({
+  status: "ok",
+  firebaseProjectId: FIREBASE_PROJECT_ID || null,
+  serviceAccountConfigured: Boolean(serviceAccount),
+  release: process.env.RENDER_GIT_COMMIT || null,
+}));
 
 app.post("/:name", async (req, res) => {
   const handler = Object.hasOwn(handlers, req.params.name) ? handlers[req.params.name] : null;
