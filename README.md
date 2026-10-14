@@ -55,12 +55,12 @@ The frontend uses local seeded-member authentication until all Firebase config f
 
 ### Without the Blaze plan (self-hosted API)
 
-Cloud Functions require the Blaze plan, but Auth, Firestore and Hosting work on the free Spark plan. `server/` is a small Express app with the same four endpoints (`getMemberProfile`, `listRecipients`, `transferFunds`, `listTransfers`). It verifies the caller's Firebase ID token and requires an active `members/{uid}` record, so only the seeded members can use it. Skip step 6's `functions` deploy and instead:
+Cloud Functions require the Blaze plan, but Auth, Firestore and Hosting work on the free Spark plan. `server/` is an Express API that verifies Firebase ID tokens and uses Firestore transactions for transfers. In demo mode, visitors can create a Firebase account, choose a six-digit transfer PIN, and receive a one-time ₹5,000 sandbox balance. New members and PIN verifiers are created by the API; balances and PIN hashes are never client-writable. Skip step 6's `functions` deploy and instead:
 
 1. Firebase console → Project settings → Service accounts → **Generate new private key**. Keep the JSON outside this repo.
 2. Push the repo to GitHub, then on [Render](https://render.com) choose **New → Blueprint** and select the repo (`render.yaml` defines a free web service rooted at `server/`). When prompted, paste the full service-account JSON as `FIREBASE_SERVICE_ACCOUNT`. Adjust `ALLOWED_ORIGINS` if your Hosting URL differs.
 3. Set `apiBaseUrl` in `frontend/firebase-config.js` to the Render URL, then `firebase deploy --only firestore:rules,hosting`.
-4. Optional: Firebase console → Authentication → Settings → User actions → untick **Enable create (sign-up)** so nobody can create new Auth accounts with the public API key (they would be rejected by the member check anyway).
+4. Enable Email/Password sign-in in Firebase Authentication. The Render-backed demo intentionally allows visitors to create sandbox accounts; disable sign-up in Firebase when the demo is over.
 
 Run it locally with `npm --prefix server install` and `FIREBASE_SERVICE_ACCOUNT="$(cat /path/to/key.json)" ALLOWED_ORIGINS=http://127.0.0.1:5000 npm --prefix server start`. Render's free tier sleeps after ~15 minutes idle, so the first request after a pause can take up to a minute.
 

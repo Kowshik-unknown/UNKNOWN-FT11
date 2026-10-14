@@ -14,21 +14,28 @@ const cors = require("cors");
 const admin = require("firebase-admin");
 
 const pbkdf2 = promisify(crypto.pbkdf2);
+const FIREBASE_CERTS_URL = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
 
 // FIREBASE_SERVICE_ACCOUNT holds the service-account JSON as a string (set it as a
 // secret env var on the host). Without it, Application Default Credentials are used.
 const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
   ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
   : null;
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID
+  || process.env.GCLOUD_PROJECT
+  || serviceAccount?.project_id;
 admin.initializeApp(serviceAccount
   ? { credential: admin.credential.cert(serviceAccount), projectId: serviceAccount.project_id }
-  : { projectId: process.env.FIREBASE_PROJECT_ID });
+  : { projectId: FIREBASE_PROJECT_ID });
 
 const db = admin.firestore();
 const MAX_TRANSFER_PAISE = 2_500_000; // ₹25,000 per transfer; review with issuer/compliance.
+const DEMO_STARTING_BALANCE_PAISE = 500_000;
 const PIN_FAILURE_LIMIT = 5;
 const PIN_LOCK_MS = 15 * 60 * 1000;
 const EXPECTED_PIN_ITERATIONS = 240_000;
+let firebaseCertCache = null;
+let firebaseCertCacheExpiresAt = 0;
 
 const HTTP_STATUS = {
   "invalid-argument": 400,
@@ -52,8 +59,33 @@ async function requireAuth(req) {
   const match = /^Bearer (.+)$/.exec(req.get("Authorization") || "");
   if (!match) throw new ApiError("unauthenticated", "Sign in with an enrolled member account.");
   try {
-    const decoded = await admin.auth().verifyIdToken(match[1]);
-    return decoded.uid;
+    const segments = match[1].split(".");
+    if (segments.length !== 3) throw new Error("Malformed Firebase ID token.");
+    const header = JSON.parse(Buffer.from(segments[0], "base64url").toString("utf8"));
+    const claims = JSON.parse(Buffer.from(segments[1], "base64url").toString("utf8"));
+    if (header.alg !== "RS256" || typeof header.kid !== "string") {
+      throw new Error("Unsupported Firebase ID token signing key.");
+    }
+    if (!FIREBASE_PROJECT_ID) throw new Error("Firebase project ID is not configured.");
+
+    const now = Math.floor(Date.now() / 1000);
+    if (claims.aud !== FIREBASE_PROJECT_ID
+        || claims.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`
+        || typeof claims.sub !== "string" || !claims.sub || claims.sub.length > 128
+        || typeof claims.exp !== "number" || claims.exp <= now
+        || typeof claims.iat !== "number" || claims.iat > now + 300) {
+      throw new Error("Firebase ID token claims are invalid for this project.");
+    }
+
+    const publicKeys = await getFirebasePublicKeys();
+    const certificate = publicKeys[header.kid];
+    if (!certificate) throw new Error("Firebase ID token signing key is not recognized.");
+    const signedContent = Buffer.from(`${segments[0]}.${segments[1]}`);
+    const signature = Buffer.from(segments[2], "base64url");
+    if (!crypto.verify("RSA-SHA256", signedContent, certificate, signature)) {
+      throw new Error("Firebase ID token signature is invalid.");
+    }
+    return claims.sub;
   } catch (error) {
     console.error("Firebase ID token verification failed", {
       code: error.code || error.name || "unknown",
@@ -61,6 +93,25 @@ async function requireAuth(req) {
     });
     throw new ApiError("unauthenticated", "Your session has expired. Sign in again.");
   }
+}
+
+async function getFirebasePublicKeys() {
+  if (firebaseCertCache && Date.now() < firebaseCertCacheExpiresAt) return firebaseCertCache;
+
+  const response = await fetch(FIREBASE_CERTS_URL);
+  if (!response.ok) throw new Error(`Could not fetch Firebase public keys (${response.status}).`);
+  const certificates = await response.json();
+  const cacheControl = response.headers.get("cache-control") || "";
+  const maxAge = Number(/max-age=(\d+)/i.exec(cacheControl)?.[1] || 3600);
+
+  firebaseCertCache = Object.fromEntries(
+    Object.entries(certificates).map(([keyId, certificate]) => [
+      keyId,
+      crypto.createPublicKey(certificate),
+    ]),
+  );
+  firebaseCertCacheExpiresAt = Date.now() + maxAge * 1000;
+  return firebaseCertCache;
 }
 
 function requiredMemberData(snapshot) {
@@ -100,6 +151,52 @@ async function verifyPin(pin, secret) {
 
 async function getMemberProfile(uid) {
   const snapshot = await db.collection("members").doc(uid).get();
+  return { profile: publicMember(uid, requiredMemberData(snapshot)) };
+}
+
+async function registerMember(uid, data) {
+  const { displayName, pin, email } = data || {};
+  if (typeof displayName !== "string" || displayName.trim().length < 2 || displayName.trim().length > 60) {
+    throw new ApiError("invalid-argument", "Enter a name between 2 and 60 characters.");
+  }
+  if (!validPin(pin)) throw new ApiError("invalid-argument", "Choose a six-digit transfer PIN.");
+
+  const memberRef = db.collection("members").doc(uid);
+  const secretRef = db.collection("memberSecrets").doc(uid);
+  const pinSalt = crypto.randomBytes(16);
+  const pinHash = await pbkdf2(pin, pinSalt, EXPECTED_PIN_ITERATIONS, 32, "sha256");
+
+  await db.runTransaction(async (transaction) => {
+    const [memberSnapshot, secretSnapshot] = await Promise.all([
+      transaction.get(memberRef),
+      transaction.get(secretRef),
+    ]);
+    if (memberSnapshot.exists || secretSnapshot.exists) {
+      throw new ApiError("already-exists", "A wallet is already registered for this account.");
+    }
+    transaction.create(memberRef, {
+      email: typeof email === "string" ? email.trim().toLowerCase() : "",
+      displayName: displayName.trim(),
+      bankId: "sandbox-demo",
+      bankName: "Sandbox Bank",
+      walletId: uid,
+      balancePaise: DEMO_STARTING_BALANCE_PAISE,
+      counter: 0,
+      isActive: true,
+      isSandbox: true,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    transaction.create(secretRef, {
+      pinSalt: pinSalt.toString("hex"),
+      pinHash: pinHash.toString("hex"),
+      pinIterations: EXPECTED_PIN_ITERATIONS,
+      pinFailures: 0,
+      pinBlockedUntil: 0,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  const snapshot = await memberRef.get();
   return { profile: publicMember(uid, requiredMemberData(snapshot)) };
 }
 
@@ -262,7 +359,7 @@ async function listTransfers(uid) {
   return { transfers: transfers.slice(0, 25) };
 }
 
-const handlers = { getMemberProfile, listRecipients, transferFunds, listTransfers };
+const handlers = { getMemberProfile, registerMember, listRecipients, transferFunds, listTransfers };
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",").map((origin) => origin.trim()).filter(Boolean);

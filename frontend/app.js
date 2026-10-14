@@ -8,6 +8,7 @@ const $ = (selector) => document.querySelector(selector);
 
 const state = {
   authMode: "local",
+  authAction: "login",
   auth: null,
   authSdk: null,
   functionsSdk: null,
@@ -175,7 +176,6 @@ function activateSession(profile, user, authMode) {
   $("#sessionBar").classList.add("flex");
   $("#loginView").classList.add("hidden");
   $("#walletView").classList.remove("hidden");
-  $("#memberCount").textContent = "50";
   $("#offlineUnavailable").classList.toggle("hidden", authMode !== "firebase");
   $("#offlineLocalTools").classList.toggle("hidden", authMode === "firebase");
   setNetworkState();
@@ -194,6 +194,26 @@ function buildFirebaseProfile(data, user) {
     counter: Number(data.counter || 0),
     active: data.active !== false,
   };
+}
+
+function setAuthAction(action) {
+  state.authAction = action;
+  const isRegistering = action === "register";
+  $("#displayNameField").classList.toggle("hidden", !isRegistering);
+  $("#pinField").classList.toggle("hidden", !isRegistering);
+  $("#displayNameInput").required = isRegistering;
+  $("#pinInput").required = isRegistering;
+  $("#authTitle").textContent = isRegistering ? "Create a demo wallet" : "Sign in to your wallet";
+  $("#authDescription").textContent = isRegistering
+    ? "Create a demo account with a unique email and password. Your wallet starts with ₹5,000 in simulated funds."
+    : "Sign in to your sandbox wallet. New demo accounts start with ₹5,000 in simulated funds.";
+  $("#loginSubmit").innerHTML = isRegistering
+    ? "Create demo account <span aria-hidden=\"true\">↗</span>"
+    : 'Sign in securely <span aria-hidden="true">↗</span>';
+  $("#authModeToggle").textContent = isRegistering
+    ? "Already registered? Sign in"
+    : "New here? Create a demo account";
+  $("#passwordInput").autocomplete = isRegistering ? "new-password" : "current-password";
 }
 
 async function callFirebaseFunction(name, payload = {}) {
@@ -237,6 +257,29 @@ async function acceptFirebaseUser(user) {
   }
 }
 
+async function registerFirebaseMember(email, password, displayName, pin) {
+  const result = await state.authSdk.createUserWithEmailAndPassword(state.auth, email, password);
+  try {
+    await state.authSdk.updateProfile(result.user, { displayName });
+    const registration = await callFirebaseFunction("registerMember", {
+      displayName,
+      email: result.user.email,
+      pin,
+    });
+    const profileData = registration.profile || registration;
+    activateSession(buildFirebaseProfile(profileData, result.user), result.user, "firebase");
+    setError("#authError", "");
+    setAuthAction("login");
+  } catch (error) {
+    try {
+      await state.authSdk.deleteUser(result.user);
+    } catch (cleanupError) {
+      throw new Error(`${error.message} The sign-in account was created but wallet setup failed; contact the demo administrator.`);
+    }
+    throw error;
+  }
+}
+
 async function initializeFirebase() {
   const config = window.OFFLINERUPEE_FIREBASE_CONFIG || {};
   const configured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
@@ -253,7 +296,9 @@ async function initializeFirebase() {
   }
 
   state.authMode = "firebase";
-  $("#authModeNote").textContent = "Firebase email/password is active. Sign-in is followed by a server-side enrolled-member check. Transfers are authorized by the callable backend; new account creation is disabled here.";
+  $("#authModeNote").textContent = config.apiBaseUrl
+    ? "Demo mode: create a Firebase account, choose a six-digit transfer PIN, and receive ₹5,000 in simulated funds. Transfers are checked by the server."
+    : "Firebase email/password is active. Sign-in is followed by a server-side enrolled-member check.";
   try {
     const appUrl = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`;
     const authUrl = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`;
@@ -290,12 +335,24 @@ async function handleLogin(event) {
   const password = $("#passwordInput").value;
   const button = $("#loginSubmit");
   button.disabled = true;
-  button.textContent = "Verifying member…";
+  button.textContent = state.authAction === "register" ? "Creating demo wallet…" : "Verifying member…";
   try {
     if (state.authMode === "firebase") {
-      const credentials = await state.authSdk.signInWithEmailAndPassword(state.auth, email, password);
-      await acceptFirebaseUser(credentials.user);
+      if (state.authAction === "register") {
+        await registerFirebaseMember(
+          email,
+          password,
+          $("#displayNameInput").value.trim(),
+          $("#pinInput").value,
+        );
+      } else {
+        const credentials = await state.authSdk.signInWithEmailAndPassword(state.auth, email, password);
+        await acceptFirebaseUser(credentials.user);
+      }
     } else {
+      if (state.authAction === "register") {
+        throw new Error("Demo account creation requires the hosted Firebase and Render services.");
+      }
       const profile = await apiRequest("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
@@ -305,12 +362,17 @@ async function handleLogin(event) {
     }
   } catch (error) {
     const isFirebaseCredentialError = /^auth\/(user-not-found|invalid-credential|wrong-password|invalid-email)/.test(error.code || "");
-    setError("#authError", isFirebaseCredentialError
-      ? "No bank account was found for this email and password. Only enrolled members can sign in."
-      : error.message || "Sign-in failed.");
+    const message = isFirebaseCredentialError
+      ? "No account was found for these sign-in details."
+      : error.code === "auth/email-already-in-use"
+        ? "This email already has an account. Choose Sign in instead."
+        : error.code === "auth/weak-password"
+          ? "Choose a password with at least six characters."
+          : error.message || "Sign-in failed.";
+    setError("#authError", message);
   } finally {
     button.disabled = false;
-    button.innerHTML = 'Sign in securely <span aria-hidden="true">↗</span>';
+    setAuthAction(state.authAction);
   }
 }
 
@@ -329,6 +391,7 @@ async function signOut() {
   state.queue = [];
   state.recipients = [];
   state.selectedRecipient = null;
+  setAuthAction("login");
   closeTransferModal();
   showLogin();
   toast("Signed out.");
@@ -652,6 +715,10 @@ function discardRejected() {
 
 function bindEvents() {
   $("#loginForm").addEventListener("submit", handleLogin);
+  $("#authModeToggle").addEventListener("click", () => {
+    setError("#authError", "");
+    setAuthAction(state.authAction === "login" ? "register" : "login");
+  });
   $("#signOutButton").addEventListener("click", signOut);
   $("#modeToggle").addEventListener("click", toggleNetworkMode);
   $("#sendMoneyButton").addEventListener("click", openTransferModal);
@@ -688,15 +755,16 @@ async function initialize() {
   if (firebaseConfigured) {
     $("#apiBadge").innerHTML = '<span class="h-2 w-2 rounded-full bg-[#abb5ad]"></span><span>FIREBASE CONFIGURED</span>';
     $("#apiWarning").classList.add("hidden");
+    $("#authModeToggle").classList.toggle("hidden", !config.apiBaseUrl);
   } else {
     try {
       const [health, roster] = await Promise.all([apiRequest("/api/health"), apiRequest("/api/roster-summary")]);
-      $("#memberCount").textContent = String(roster.memberCount || 50);
       setApiStatus(health.status === "ok");
     } catch (error) {
       setApiStatus(false, `Could not load the member service. Start FastAPI and refresh. ${error.message}`);
     }
   }
+  setAuthAction("login");
   await initializeFirebase();
 }
 
