@@ -11,8 +11,8 @@ const state = {
   authAction: "login",
   auth: null,
   authSdk: null,
-  functionsSdk: null,
-  functions: null,
+  firestoreSdk: null,
+  database: null,
   user: null,
   profile: null,
   recipients: [],
@@ -161,6 +161,8 @@ function activateSession(profile, user, authMode) {
   state.profile = profile;
   state.user = user || { email: profile.email };
   state.authMode = authMode;
+  $("#transferPinField").classList.toggle("hidden", authMode !== "local");
+  $("#transferPinInput").required = authMode === "local";
   state.queue = readJson(queueKey(profile.email), []);
   if (!Array.isArray(state.queue)) state.queue = [];
 
@@ -200,9 +202,7 @@ function setAuthAction(action) {
   state.authAction = action;
   const isRegistering = action === "register";
   $("#displayNameField").classList.toggle("hidden", !isRegistering);
-  $("#pinField").classList.toggle("hidden", !isRegistering);
   $("#displayNameInput").required = isRegistering;
-  $("#pinInput").required = isRegistering;
   $("#authTitle").textContent = isRegistering ? "Create a demo wallet" : "Sign in to your wallet";
   $("#authDescription").textContent = isRegistering
     ? "Create a demo account with a unique email and password. Your wallet starts with ₹5,000 in simulated funds."
@@ -216,31 +216,192 @@ function setAuthAction(action) {
   $("#passwordInput").autocomplete = isRegistering ? "new-password" : "current-password";
 }
 
-async function callFirebaseFunction(name, payload = {}) {
-  const apiBaseUrl = (window.OFFLINERUPEE_FIREBASE_CONFIG || {}).apiBaseUrl;
-  if (apiBaseUrl) {
-    // Self-hosted API (server/) used instead of Cloud Functions; same error codes.
-    if (!state.auth?.currentUser) throw new Error("Sign in with an enrolled member account.");
-    const idToken = await state.auth.currentUser.getIdToken();
-    const response = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/${name}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify(payload),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(body.error?.message || `Request failed (${response.status})`);
-      error.code = `functions/${body.error?.status || "internal"}`;
-      throw error;
-    }
-    return body;
-  }
-  if (!state.functionsSdk || !state.functions) throw new Error("Firebase Cloud Functions are not configured.");
-  const callable = state.functionsSdk.httpsCallable(state.functions, name);
-  const response = await callable(payload);
-  return response.data;
+function memberRef(uid) {
+  return state.firestoreSdk.doc(state.database, "members", uid);
 }
 
+function publicMemberRef(uid) {
+  return state.firestoreSdk.doc(state.database, "publicMembers", uid);
+}
+
+function transferRef(transferId) {
+  return state.firestoreSdk.doc(state.database, "transfers", transferId);
+}
+
+function memberProfileFromSnapshot(snapshot) {
+  const data = snapshot.data();
+  if (!data.isActive) throw new Error("This sandbox wallet is inactive.");
+  return {
+    uid: snapshot.id,
+    memberId: snapshot.id,
+    walletId: data.walletId || snapshot.id,
+    email: data.email || state.auth.currentUser?.email,
+    displayName: data.displayName || state.auth.currentUser?.displayName || "Demo member",
+    bankName: data.bankName || "Sandbox Bank",
+    balancePaise: Number(data.balancePaise || 0),
+    counter: Number(data.counter || 0),
+    active: true,
+  };
+}
+
+async function callFirebaseFunction(name, payload = {}) {
+  if (!state.firestoreSdk || !state.database || !state.auth?.currentUser) {
+    throw new Error("Sign in to your Firebase sandbox account and try again.");
+  }
+  const sdk = state.firestoreSdk;
+  const uid = state.auth.currentUser.uid;
+
+  if (name === "getMemberProfile") {
+    const profile = await sdk.getDoc(memberRef(uid));
+    if (!profile.exists()) throw new Error("No sandbox wallet is linked to this account.");
+    const memberProfile = memberProfileFromSnapshot(profile);
+    const directoryEntry = await sdk.getDoc(publicMemberRef(uid));
+    if (!directoryEntry.exists()) {
+      await sdk.setDoc(publicMemberRef(uid), {
+        displayName: memberProfile.displayName,
+        bankName: memberProfile.bankName,
+        isActive: true,
+      });
+    }
+    return { profile: memberProfile };
+  }
+
+  if (name === "registerMember") {
+    const user = state.auth.currentUser;
+    const displayName = String(payload.displayName || "").trim();
+    if (!displayName || !user.email) throw new Error("Enter your name and a valid email address.");
+    const profile = {
+      email: user.email,
+      displayName,
+      bankName: "Sandbox Bank",
+      walletId: uid,
+      balancePaise: 500000,
+      counter: 0,
+      isActive: true,
+      createdAt: sdk.serverTimestamp(),
+      updatedAt: sdk.serverTimestamp(),
+    };
+    const batch = sdk.writeBatch(state.database);
+    batch.set(memberRef(uid), profile);
+    batch.set(publicMemberRef(uid), {
+      displayName,
+      bankName: profile.bankName,
+      isActive: true,
+    });
+    await batch.commit();
+    return { profile: { ...profile, uid, memberId: uid, active: true } };
+  }
+
+  if (name === "listRecipients") {
+    const directory = await sdk.getDocs(sdk.query(
+      sdk.collection(state.database, "publicMembers"),
+      sdk.where("isActive", "==", true),
+    ));
+    return {
+      recipients: directory.docs.map((item) => ({
+        memberId: item.id,
+        displayName: item.data().displayName,
+        bankName: item.data().bankName,
+        isSelf: item.id === uid,
+      })),
+    };
+  }
+
+  if (name === "transferFunds") {
+    const amountPaise = Number(payload.amountPaise);
+    const recipientId = String(payload.recipientId || "");
+    const idempotencyKey = String(payload.idempotencyKey || "");
+    if (!Number.isSafeInteger(amountPaise) || amountPaise < 1 || amountPaise > 2_500_000) {
+      throw new Error("Transfer amount must be between ₹0.01 and ₹25,000.00.");
+    }
+    if (!recipientId || recipientId === uid || !/^[\w-]{1,100}$/.test(idempotencyKey)) {
+      throw new Error("Choose a valid recipient and try again.");
+    }
+    const transferId = `${uid}_${idempotencyKey}`;
+    const senderRef = memberRef(uid);
+    const recipientDirectoryRef = publicMemberRef(recipientId);
+    const receiptRef = transferRef(transferId);
+    return sdk.runTransaction(state.database, async (transaction) => {
+      const [senderSnapshot, recipientSnapshot, receiptSnapshot] = await Promise.all([
+        transaction.get(senderRef),
+        transaction.get(recipientDirectoryRef),
+        transaction.get(receiptRef),
+      ]);
+      if (!senderSnapshot.exists() || !recipientSnapshot.exists()) {
+        throw new Error("The sender or recipient wallet no longer exists.");
+      }
+      const sender = senderSnapshot.data();
+      const recipient = recipientSnapshot.data();
+      if (!sender.isActive || !recipient.isActive) throw new Error("The sender or recipient wallet is inactive.");
+      if (receiptSnapshot.exists()) {
+        const prior = receiptSnapshot.data();
+        if (prior.senderId !== uid || prior.recipientId !== recipientId || prior.amountPaise !== amountPaise) {
+          throw new Error("This transfer reference was already used for a different payment.");
+        }
+        return {
+          transferId,
+          amountPaise,
+          senderBalancePaise: Number(sender.balancePaise),
+          recipientName: prior.recipientName,
+          recipientBankName: prior.recipientBankName,
+        };
+      }
+      if (!Number.isSafeInteger(sender.balancePaise) || sender.balancePaise < amountPaise) {
+        throw new Error("Insufficient available balance.");
+      }
+      transaction.update(senderRef, {
+        balancePaise: sender.balancePaise - amountPaise,
+        lastTransferId: transferId,
+        updatedAt: sdk.serverTimestamp(),
+      });
+      transaction.update(memberRef(recipientId), {
+        balancePaise: sdk.increment(amountPaise),
+        lastTransferId: transferId,
+        updatedAt: sdk.serverTimestamp(),
+      });
+      transaction.set(receiptRef, {
+        transferId,
+        idempotencyKey,
+        senderId: uid,
+        recipientId,
+        senderName: sender.displayName,
+        senderBankName: sender.bankName,
+        recipientName: recipient.displayName,
+        recipientBankName: recipient.bankName,
+        amountPaise,
+        status: "settled",
+        createdAt: sdk.serverTimestamp(),
+      });
+      return {
+        transferId,
+        amountPaise,
+        senderBalancePaise: sender.balancePaise - amountPaise,
+        recipientName: recipient.displayName,
+        recipientBankName: recipient.bankName,
+      };
+    });
+  }
+
+  if (name === "listTransfers") {
+    const transferCollection = sdk.collection(state.database, "transfers");
+    const [sent, received] = await Promise.all([
+      sdk.getDocs(sdk.query(transferCollection, sdk.where("senderId", "==", uid), sdk.limit(50))),
+      sdk.getDocs(sdk.query(transferCollection, sdk.where("recipientId", "==", uid), sdk.limit(50))),
+    ]);
+    const transfers = [
+      ...sent.docs.map((item) => ({ ...item.data(), direction: "sent" })),
+      ...received.docs.map((item) => ({ ...item.data(), direction: "received" })),
+    ].map((item) => ({
+      ...item,
+      counterpartyName: item.direction === "sent" ? item.recipientName : item.senderName,
+      counterpartyBankName: item.direction === "sent" ? item.recipientBankName : item.senderBankName,
+      createdAt: item.createdAt?.toMillis ? item.createdAt.toMillis() : item.createdAt,
+    })).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+    return { transfers };
+  }
+
+  throw new Error(`Unsupported Firebase operation: ${name}`);
+}
 async function acceptFirebaseUser(user) {
   try {
     const result = await callFirebaseFunction("getMemberProfile");
@@ -250,21 +411,17 @@ async function acceptFirebaseUser(user) {
   } catch (error) {
     await state.authSdk.signOut(state.auth).catch(() => {});
     showLogin();
-    const message = error.code === "functions/not-found" || error.code === "functions/failed-precondition"
-      ? "No bank account was found for this signed-in user. Access is limited to the 50 enrolled members."
-      : `Could not verify this member account. ${error.message}`;
+    const message = `Could not verify this member account. ${error.message}`;
     setError("#authError", message);
   }
 }
 
-async function registerFirebaseMember(email, password, displayName, pin) {
+async function registerFirebaseMember(email, password, displayName) {
   const result = await state.authSdk.createUserWithEmailAndPassword(state.auth, email, password);
   try {
     await state.authSdk.updateProfile(result.user, { displayName });
     const registration = await callFirebaseFunction("registerMember", {
       displayName,
-      email: result.user.email,
-      pin,
     });
     const profileData = registration.profile || registration;
     activateSession(buildFirebaseProfile(profileData, result.user), result.user, "firebase");
@@ -285,7 +442,7 @@ async function initializeFirebase() {
   const configured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
   if (!configured) {
     state.authMode = "local";
-    $("#authModeNote").textContent = "Local member mode is active. Only the 50 pre-enrolled sandbox accounts can sign in. Their one-time passwords and six-digit PINs are kept in backend/local_seed_credentials.json on this machine, not served to browsers. Firebase Auth and Firestore functions can be enabled with your project config.";
+    $("#authModeNote").textContent = "Local member mode is active. Start the FastAPI service to sign in to the local sandbox. Configure Firebase to use the hosted demo.";
     try {
       const profile = await apiRequest("/api/me");
       activateSession(profile, { email: profile.email }, "local");
@@ -296,20 +453,18 @@ async function initializeFirebase() {
   }
 
   state.authMode = "firebase";
-  $("#authModeNote").textContent = config.apiBaseUrl
-    ? "Demo mode: create a Firebase account, choose a six-digit transfer PIN, and receive ₹5,000 in simulated funds. Transfers are checked by the server."
-    : "Firebase email/password is active. Sign-in is followed by a server-side enrolled-member check.";
+  $("#authModeNote").textContent = "Firebase Spark demo is active. Create an account for a ₹5,000 simulated wallet; transfers are settled atomically in Firestore.";
   try {
     const appUrl = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`;
     const authUrl = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`;
-    const functionsUrl = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-functions.js`;
-    const [appSdk, authSdk, functionsSdk] = await Promise.all([import(appUrl), import(authUrl), import(functionsUrl)]);
+    const firestoreUrl = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`;
+    const [appSdk, authSdk, firestoreSdk] = await Promise.all([import(appUrl), import(authUrl), import(firestoreUrl)]);
     const firebaseApp = appSdk.getApps().find((app) => app.name === "offlinerupee")
       || appSdk.initializeApp(config, "offlinerupee");
     state.authSdk = authSdk;
     state.auth = authSdk.getAuth(firebaseApp);
-    state.functionsSdk = functionsSdk;
-    state.functions = functionsSdk.getFunctions(firebaseApp, config.region || "asia-south1");
+    state.firestoreSdk = firestoreSdk;
+    state.database = firestoreSdk.getFirestore(firebaseApp);
 
     const user = await new Promise((resolve, reject) => {
       let unsubscribe = () => {};
@@ -321,7 +476,7 @@ async function initializeFirebase() {
     if (user) await acceptFirebaseUser(user);
     else showLogin();
   } catch (error) {
-    $("#authModeNote").textContent = `Firebase could not initialize: ${error.message}. Check the web config and deploy the callable functions.`;
+    $("#authModeNote").textContent = `Firebase could not initialize: ${error.message}. Check the Firebase web config, enable Email/Password sign-in, and deploy Firestore rules.`;
     $("#authModeNote").classList.add("border-red-200", "text-red-800");
     $("#loginSubmit").disabled = true;
     showLogin();
@@ -343,7 +498,6 @@ async function handleLogin(event) {
           email,
           password,
           $("#displayNameInput").value.trim(),
-          $("#pinInput").value,
         );
       } else {
         const credentials = await state.authSdk.signInWithEmailAndPassword(state.auth, email, password);
@@ -351,7 +505,7 @@ async function handleLogin(event) {
       }
     } else {
       if (state.authAction === "register") {
-        throw new Error("Demo account creation requires the hosted Firebase and Render services.");
+        throw new Error("Demo account creation requires Firebase Authentication.");
       }
       const profile = await apiRequest("/api/auth/login", {
         method: "POST",
@@ -508,7 +662,7 @@ async function submitTransfer(event) {
     setError("#transferError", "Enter a valid amount with up to two decimal places.");
     return;
   }
-  if (!/^\d{6}$/.test(pin)) {
+  if (state.authMode === "local" && !/^\d{6}$/.test(pin)) {
     setError("#transferError", "Enter your assigned six-digit transfer PIN.");
     return;
   }
@@ -523,14 +677,14 @@ async function submitTransfer(event) {
 
   state.submittingTransfer = true;
   $("#confirmTransferButton").disabled = true;
-  $("#confirmTransferButton").textContent = "Verifying PIN and transferring…";
+  $("#confirmTransferButton").textContent = "Transferring securely...";
   try {
     const payload = {
       recipientId: state.selectedRecipient.memberId,
       amountPaise,
-      pin,
       idempotencyKey: makeIdempotencyKey(),
     };
+    if (state.authMode === "local") payload.pin = pin;
     const result = state.authMode === "firebase"
       ? await callFirebaseFunction("transferFunds", payload)
       : await apiRequest("/api/transfers", { method: "POST", body: JSON.stringify(payload) });
@@ -755,8 +909,9 @@ async function initialize() {
   if (firebaseConfigured) {
     $("#apiBadge").innerHTML = '<span class="h-2 w-2 rounded-full bg-[#abb5ad]"></span><span>FIREBASE CONFIGURED</span>';
     $("#apiWarning").classList.add("hidden");
-    $("#authModeToggle").classList.toggle("hidden", !config.apiBaseUrl);
+    $("#authModeToggle").classList.remove("hidden");
   } else {
+    $("#authModeToggle").classList.add("hidden");
     try {
       const [health, roster] = await Promise.all([apiRequest("/api/health"), apiRequest("/api/roster-summary")]);
       setApiStatus(health.status === "ok");

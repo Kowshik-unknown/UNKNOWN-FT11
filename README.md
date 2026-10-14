@@ -1,6 +1,6 @@
 # Offlinerupee — enrolled-member wallet prototype
 
-A local-first wallet prototype with a fixed 50-member roster, bank-name assignments, sign-in allowlisting, peer transfers, six-digit transfer-PIN checks, and a signed offline payment queue. The FastAPI local mode is runnable without Firebase; optional Firebase Authentication and Firestore callable functions are included for the next integration step.
+A local-first wallet prototype with a 50-member roster, bank-name assignments, peer transfers, and a signed offline payment queue. The hosted demo uses Firebase Authentication, Firestore, and Hosting on the Spark plan; local FastAPI mode remains available for development.
 
 > **No real bank connection or money:** the 50 members and balances are synthetic sandbox data. Bank names are reference labels only. The app does not collect bank account numbers, card numbers, CVVs, OTPs, or bank passwords. CVV is deliberately not stored or used; it is not a wallet login credential and must not be retained.
 
@@ -27,52 +27,38 @@ All local balances are sandbox amounts, not bank balances. The offline merchant-
 
 ## Firebase setup
 
-The frontend uses local seeded-member authentication until all Firebase config fields are filled. Once configured, it switches to Firebase Email/Password sign-in and calls Cloud Functions for member lookup, recipient listing, and transfer processing. A valid Firebase login is not enough: `getMemberProfile` also checks that the signed-in UID has an active `members/{uid}` record, so un-enrolled users are rejected. The app contains no sign-up control.
+When Firebase is configured, the frontend uses Firebase Email/Password authentication and Firestore directly; it does not call Render, FastAPI, or Cloud Functions. Visitors can register a demo account and receive ₹5,000 in simulated funds. Firestore rules restrict profile creation to the signed-in user, make profiles private, publish only a separate name/bank directory, and allow balance changes only when a matching transfer atomically debits one wallet and credits another. The six-digit PIN remains part of local FastAPI mode only: Spark has no trusted server to verify it, so the Firebase demo does not request or claim to verify a transfer PIN.
 
-1. Create a **dedicated Firebase sandbox project**. Enable Email/Password in Firebase Authentication and create Firestore in production mode.
-2. Put the public web-app values (`apiKey`, `authDomain`, `projectId`, `appId`) and Functions region in `frontend/firebase-config.js`. Never place a service-account key there.
-3. Install the Firebase CLI and the callable-function dependencies:
+1. Use a **dedicated Firebase sandbox project**. Enable Email/Password in Firebase Authentication and create Firestore in production mode.
+2. Confirm the public web-app values (`apiKey`, `authDomain`, `projectId`, `appId`) in `frontend/firebase-config.js`. Never put a service-account key there.
+3. Install the Firebase CLI, sign in, and select the project:
    ```bash
-   npm --prefix functions install
+   npm install -g firebase-tools
    firebase login
    firebase use --add
    ```
-4. Provide Application Default Credentials for the Admin SDK without adding them to Git. For a local test project, set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON path outside this repository and set `FIREBASE_PROJECT_ID`.
-5. Install the optional seeder dependency and provision the 50 sandbox users:
+4. Deploy the Firestore security rules and static frontend:
    ```bash
-   python -m pip install -r backend/requirements-firebase.txt
-   python -m backend.seed_firebase
+   firebase deploy --only firestore:rules,hosting
    ```
-   It creates Auth users and Firestore profiles/secrets, then writes their generated passwords and six-digit PINs to the ignored `backend/firebase_seed_credentials.json`. Run this only in an empty test project. `--overwrite` rotates all matching passwords/PINs and resets sandbox balances.
-6. Deploy the strict Firestore rules and functions:
-   ```bash
-   firebase deploy --only firestore:rules,functions
-   ```
-7. Deploy the static frontend to Firebase Hosting:
+
+Once deployed, open the Hosting URL and select **New here? Create a demo account**. Existing seeded members may continue signing in; their public name/bank listing is added when they next sign in. This setup requires no Firebase service-account key, Blaze upgrade, or Render service.
+
+For local development, deploy Hosting separately only when you want to update the live site:
    ```bash
    firebase deploy --only hosting
    ```
-
-### Without the Blaze plan (self-hosted API)
-
-Cloud Functions require the Blaze plan, but Auth, Firestore and Hosting work on the free Spark plan. `server/` is an Express API that verifies Firebase ID tokens and uses Firestore transactions for transfers. In demo mode, visitors can create a Firebase account, choose a six-digit transfer PIN, and receive a one-time ₹5,000 sandbox balance. New members and PIN verifiers are created by the API; balances and PIN hashes are never client-writable. Skip step 6's `functions` deploy and instead:
-
-1. Firebase console → Project settings → Service accounts → **Generate new private key**. Keep the JSON outside this repo.
-2. Push the repo to GitHub, then on [Render](https://render.com) choose **New → Blueprint** and select the repo (`render.yaml` defines a free web service rooted at `server/`). When prompted, paste the full service-account JSON as `FIREBASE_SERVICE_ACCOUNT`. Adjust `ALLOWED_ORIGINS` if your Hosting URL differs.
-3. Set `apiBaseUrl` in `frontend/firebase-config.js` to the Render URL, then `firebase deploy --only firestore:rules,hosting`.
-4. Enable Email/Password sign-in in Firebase Authentication. The Render-backed demo intentionally allows visitors to create sandbox accounts; disable sign-up in Firebase when the demo is over.
-
-Run it locally with `npm --prefix server install` and `FIREBASE_SERVICE_ACCOUNT="$(cat /path/to/key.json)" ALLOWED_ORIGINS=http://127.0.0.1:5000 npm --prefix server start`. Render's free tier sleeps after ~15 minutes idle, so the first request after a pause can take up to a minute.
 
 The seeder uses reserved `example.com` test addresses and synthetic initial balances. Replace the roster with real, consented enrollment data and a legitimate funds-provisioning process before any pilot. Do not seed real account numbers, CVVs, or passwords into Firestore.
 
 ## Firebase data model and rules
 
 - `members/{uid}` — display name, email, bank label, wallet ID, sandbox balance in paise, counter, and `isActive`.
-- `memberSecrets/{uid}` — server-only salted PBKDF2 PIN verifier, failure count, and lockout timestamp.
-- `transfers/{senderUid_idempotencyKey}` — server-created transfer record. Cloud Functions update both balances and create this record atomically.
+- `publicMembers/{uid}` — only display name, bank label, and active status; readable to signed-in demo users.
+- `memberSecrets/{uid}` — legacy server-only PIN verifier data; never readable or writable by the client.
+- `transfers/{senderUid_idempotencyKey}` — transfer record created in the same Firestore transaction that updates both balances.
 
-`firestore.rules` allows a signed-in user to read only their own member document and denies client writes and direct access to secret/transfer documents. All recipient listing, PIN verification, lockout, idempotency, and balance changes go through callable Cloud Functions using the Admin SDK. Admin SDK operations bypass Firestore rules, so the Functions code must remain the authorization boundary.
+`firestore.rules` allows a signed-in user to read only their own private member document. New Firebase demo accounts receive exactly 500,000 paise at creation; clients cannot update balances except through a matched transfer that reduces the sender balance and increases the recipient balance by the same amount. Transfer documents are visible only to their two participants. This is a demo integrity boundary, not a real-money banking system; demo users can create multiple accounts and there is no server-verified PIN or fraud-control service.
 
 ## Bank catalogue
 

@@ -5,25 +5,185 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // A member may read only their own profile. All balance and status changes
-    // must go through the authenticated Cloud Functions using Admin SDK.
-    match /members/{memberId} {
-      allow get: if signedIn() && request.auth.uid == memberId;
-      allow list, create, update, delete: if false;
+    function memberPath(memberId) {
+      return /databases/$(database)/documents/members/$(memberId);
     }
 
-    // PIN salts/hashes and lockout state are server-only.
+    function transferPath(transferId) {
+      return /databases/$(database)/documents/transfers/$(transferId);
+    }
+
+    function activeMember(memberId) {
+      return exists(memberPath(memberId))
+        && get(memberPath(memberId)).data.isActive == true;
+    }
+
+    function validNewMember(memberId) {
+      return signedIn()
+        && request.auth.uid == memberId
+        && request.resource.data.keys().hasOnly([
+          'email', 'displayName', 'bankName', 'walletId', 'balancePaise',
+          'counter', 'isActive', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'email', 'displayName', 'bankName', 'walletId', 'balancePaise',
+          'counter', 'isActive', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.bankName == 'Sandbox Bank'
+        && request.resource.data.walletId == memberId
+        && request.resource.data.balancePaise == 500000
+        && request.resource.data.counter == 0
+        && request.resource.data.isActive == true
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && getAfter(/databases/$(database)/documents/publicMembers/$(memberId)).data.displayName
+          == request.resource.data.displayName;
+    }
+
+    function validPublicMember(memberId) {
+      return signedIn()
+        && request.auth.uid == memberId
+        && request.resource.data.keys().hasOnly(['displayName', 'bankName', 'isActive'])
+        && request.resource.data.keys().hasAll(['displayName', 'bankName', 'isActive'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.isActive == true
+        && (
+          (exists(memberPath(memberId))
+            && get(memberPath(memberId)).data.displayName == request.resource.data.displayName
+            && get(memberPath(memberId)).data.bankName == request.resource.data.bankName
+            && get(memberPath(memberId)).data.isActive == true)
+          ||
+          (getAfter(memberPath(memberId)).data.displayName == request.resource.data.displayName
+            && getAfter(memberPath(memberId)).data.bankName == request.resource.data.bankName
+            && getAfter(memberPath(memberId)).data.isActive == true)
+        );
+    }
+
+    function validMemberTransfer(memberId) {
+      let transferId = request.resource.data.lastTransferId;
+      let transfer = getAfter(transferPath(transferId)).data;
+      let amount = transfer.amountPaise;
+      let oldBalance = resource.data.balancePaise;
+      let newBalance = request.resource.data.balancePaise;
+      return signedIn()
+        && resource.data.isActive == true
+        && request.resource.data.isActive == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'balancePaise', 'lastTransferId', 'updatedAt'
+        ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAll([
+          'balancePaise', 'lastTransferId', 'updatedAt'
+        ])
+        && oldBalance is int
+        && oldBalance >= 0
+        && newBalance is int
+        && newBalance >= 0
+        && request.resource.data.updatedAt is timestamp
+        && transfer.transferId == transferId
+        && transfer.status == 'settled'
+        && transfer.amountPaise is int
+        && amount > 0
+        && amount <= 2500000
+        && (request.auth.uid == transfer.senderId || request.auth.uid == transfer.recipientId)
+        && (
+          (transfer.senderId == memberId
+            && request.auth.uid == memberId
+            && newBalance == oldBalance - amount)
+          ||
+          (transfer.recipientId == memberId
+            && newBalance == oldBalance + amount)
+        );
+    }
+
+    match /members/{memberId} {
+      allow get: if signedIn() && request.auth.uid == memberId;
+      allow list: if false;
+      allow create: if validNewMember(memberId);
+      allow update: if validMemberTransfer(memberId);
+      allow delete: if false;
+    }
+
+    match /publicMembers/{memberId} {
+      allow get, list: if signedIn() && resource.data.isActive == true;
+      allow create: if validPublicMember(memberId);
+      allow update, delete: if false;
+    }
+
     match /memberSecrets/{memberId} {
       allow read, write: if false;
     }
 
-    // Transfer records are read through listTransfers callable so callers only
-    // receive redacted counterpart details. No direct client writes are allowed.
     match /transfers/{transferId} {
-      allow read, write: if false;
+      allow get: if signedIn()
+        && ((resource == null
+            && transferId.matches('^' + request.auth.uid + '_.*$'))
+          || resource.data.senderId == request.auth.uid
+          || resource.data.recipientId == request.auth.uid);
+      allow list: if signedIn()
+        && (resource.data.senderId == request.auth.uid
+          || resource.data.recipientId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'transferId', 'idempotencyKey', 'senderId', 'recipientId',
+          'senderName', 'senderBankName', 'recipientName',
+          'recipientBankName', 'amountPaise', 'status', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'transferId', 'idempotencyKey', 'senderId', 'recipientId',
+          'senderName', 'senderBankName', 'recipientName',
+          'recipientBankName', 'amountPaise', 'status', 'createdAt'
+        ])
+        && request.resource.data.transferId == transferId
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.recipientId is string
+        && request.resource.data.senderId != request.resource.data.recipientId
+        && request.resource.data.idempotencyKey is string
+        && request.resource.data.idempotencyKey.size() > 0
+        && request.resource.data.idempotencyKey.size() <= 100
+        && transferId == request.resource.data.senderId + '_' + request.resource.data.idempotencyKey
+        && request.resource.data.amountPaise is int
+        && request.resource.data.amountPaise > 0
+        && request.resource.data.amountPaise <= 2500000
+        && request.resource.data.status == 'settled'
+        && request.resource.data.createdAt is timestamp
+        && activeMember(request.resource.data.senderId)
+        && activeMember(request.resource.data.recipientId)
+        && request.resource.data.senderName
+          == get(memberPath(request.resource.data.senderId)).data.displayName
+        && request.resource.data.senderBankName
+          == get(memberPath(request.resource.data.senderId)).data.bankName
+        && request.resource.data.recipientName
+          == get(memberPath(request.resource.data.recipientId)).data.displayName
+        && request.resource.data.recipientBankName
+          == get(memberPath(request.resource.data.recipientId)).data.bankName
+        && exists(/databases/$(database)/documents/publicMembers/$(request.resource.data.recipientId))
+        && get(/databases/$(database)/documents/publicMembers/$(request.resource.data.recipientId)).data.isActive == true
+        && request.resource.data.recipientName
+          == get(/databases/$(database)/documents/publicMembers/$(request.resource.data.recipientId)).data.displayName
+        && request.resource.data.recipientBankName
+          == get(/databases/$(database)/documents/publicMembers/$(request.resource.data.recipientId)).data.bankName
+        && get(memberPath(request.resource.data.senderId)).data.balancePaise is int
+        && get(memberPath(request.resource.data.senderId)).data.balancePaise
+          >= request.resource.data.amountPaise
+        && get(memberPath(request.resource.data.recipientId)).data.balancePaise is int
+        && get(memberPath(request.resource.data.recipientId)).data.balancePaise >= 0
+        && get(memberPath(request.resource.data.senderId)).data.balancePaise
+          - request.resource.data.amountPaise
+          == getAfter(memberPath(request.resource.data.senderId)).data.balancePaise
+        && get(memberPath(request.resource.data.recipientId)).data.balancePaise
+          + request.resource.data.amountPaise
+          == getAfter(memberPath(request.resource.data.recipientId)).data.balancePaise
+        && getAfter(memberPath(request.resource.data.senderId)).data.lastTransferId == transferId
+        && getAfter(memberPath(request.resource.data.recipientId)).data.lastTransferId == transferId;
+      allow update, delete: if false;
     }
 
-    // Deny every document not explicitly allowed above.
     match /{document=**} {
       allow read, write: if false;
     }
