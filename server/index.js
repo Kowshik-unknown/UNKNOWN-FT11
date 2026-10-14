@@ -52,7 +52,7 @@ async function requireAuth(req) {
   const match = /^Bearer (.+)$/.exec(req.get("Authorization") || "");
   if (!match) throw new ApiError("unauthenticated", "Sign in with an enrolled member account.");
   try {
-    const decoded = await admin.auth().verifyIdToken(match[1], true);
+    const decoded = await admin.auth().verifyIdToken(match[1]);
     return decoded.uid;
   } catch (error) {
     console.error("Firebase ID token verification failed", {
