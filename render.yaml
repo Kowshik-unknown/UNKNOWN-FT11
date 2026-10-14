@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: offlinerupee-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://offline-rupee.web.app,https://offline-rupee.firebaseapp.com
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false

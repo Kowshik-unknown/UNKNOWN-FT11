@@ -1,0 +1,16 @@
+{
+  "name": "offlinerupee-api",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.0.0"
+  }
+}

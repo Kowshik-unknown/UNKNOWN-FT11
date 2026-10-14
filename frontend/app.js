@@ -197,6 +197,24 @@ function buildFirebaseProfile(data, user) {
 }
 
 async function callFirebaseFunction(name, payload = {}) {
+  const apiBaseUrl = (window.OFFLINERUPEE_FIREBASE_CONFIG || {}).apiBaseUrl;
+  if (apiBaseUrl) {
+    // Self-hosted API (server/) used instead of Cloud Functions; same error codes.
+    if (!state.auth?.currentUser) throw new Error("Sign in with an enrolled member account.");
+    const idToken = await state.auth.currentUser.getIdToken();
+    const response = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(body.error?.message || `Request failed (${response.status})`);
+      error.code = `functions/${body.error?.status || "internal"}`;
+      throw error;
+    }
+    return body;
+  }
   if (!state.functionsSdk || !state.functions) throw new Error("Firebase Cloud Functions are not configured.");
   const callable = state.functionsSdk.httpsCallable(state.functions, name);
   const response = await callable(payload);
@@ -665,12 +683,19 @@ function bindEvents() {
 async function initialize() {
   bindEvents();
   setNetworkState();
-  try {
-    const [health, roster] = await Promise.all([apiRequest("/api/health"), apiRequest("/api/roster-summary")]);
-    $("#memberCount").textContent = String(roster.memberCount || 50);
-    setApiStatus(health.status === "ok");
-  } catch (error) {
-    setApiStatus(false, `Could not load the member service. Start FastAPI and refresh. ${error.message}`);
+  const config = window.OFFLINERUPEE_FIREBASE_CONFIG || {};
+  const firebaseConfigured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
+  if (firebaseConfigured) {
+    $("#apiBadge").innerHTML = '<span class="h-2 w-2 rounded-full bg-[#abb5ad]"></span><span>FIREBASE CONFIGURED</span>';
+    $("#apiWarning").classList.add("hidden");
+  } else {
+    try {
+      const [health, roster] = await Promise.all([apiRequest("/api/health"), apiRequest("/api/roster-summary")]);
+      $("#memberCount").textContent = String(roster.memberCount || 50);
+      setApiStatus(health.status === "ok");
+    } catch (error) {
+      setApiStatus(false, `Could not load the member service. Start FastAPI and refresh. ${error.message}`);
+    }
   }
   await initializeFirebase();
 }

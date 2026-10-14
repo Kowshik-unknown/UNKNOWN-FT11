@@ -19,6 +19,8 @@ Open <http://127.0.0.1:8000>. On the first start, FastAPI seeds **50 pre-enrolle
 
 The local seed creates a random password and six-digit PIN per member. It stores only PBKDF2 password/PIN verifiers in SQLite and writes the one-time sandbox credentials to `backend/local_seed_credentials.json`. That file is **git-ignored, not served by the web server, and contains sensitive test credentials**—keep it private. The login page does not show credentials. The roster itself is `backend/member_roster.json` and contains names, fixed test emails, bank-name assignments, wallet IDs, and synthetic starting balances, but no passwords, PINs, CVVs, or account numbers.
 
+Firebase Hosting serves only the static frontend; it does not run FastAPI. For the hosted Firebase mode, deploy the callable functions and provision Firebase Auth/Firestore members using the Firebase setup below. Their one-time passwords and PINs are written to `backend/firebase_seed_credentials.json`. The local and Firebase credential files are separate; neither is created just by deploying Hosting.
+
 After sign-in, the wallet displays the member's assigned bank and balance. **Send money** loads the 50-member recipient directory; each row shows only the recipient's name and bank. The current member is visible but disabled as a recipient. Select another member, enter an amount and the assigned six-digit transfer PIN, then confirm. Local transfers update sender and recipient balances in one SQLite transaction. Five incorrect PIN attempts trigger a 15-minute lock. The transfer limit is ₹25,000 per transaction in this prototype.
 
 All local balances are sandbox amounts, not bank balances. The offline merchant-payment section remains available in local mode; signed pending payments are kept in browser `localStorage` and synchronized through `POST /api/sync-batch`. Do not use it for real funds.
@@ -46,6 +48,21 @@ The frontend uses local seeded-member authentication until all Firebase config f
    ```bash
    firebase deploy --only firestore:rules,functions
    ```
+7. Deploy the static frontend to Firebase Hosting:
+   ```bash
+   firebase deploy --only hosting
+   ```
+
+### Without the Blaze plan (self-hosted API)
+
+Cloud Functions require the Blaze plan, but Auth, Firestore and Hosting work on the free Spark plan. `server/` is a small Express app with the same four endpoints (`getMemberProfile`, `listRecipients`, `transferFunds`, `listTransfers`). It verifies the caller's Firebase ID token and requires an active `members/{uid}` record, so only the seeded members can use it. Skip step 6's `functions` deploy and instead:
+
+1. Firebase console → Project settings → Service accounts → **Generate new private key**. Keep the JSON outside this repo.
+2. Push the repo to GitHub, then on [Render](https://render.com) choose **New → Blueprint** and select the repo (`render.yaml` defines a free web service rooted at `server/`). When prompted, paste the full service-account JSON as `FIREBASE_SERVICE_ACCOUNT`. Adjust `ALLOWED_ORIGINS` if your Hosting URL differs.
+3. Set `apiBaseUrl` in `frontend/firebase-config.js` to the Render URL, then `firebase deploy --only firestore:rules,hosting`.
+4. Optional: Firebase console → Authentication → Settings → User actions → untick **Enable create (sign-up)** so nobody can create new Auth accounts with the public API key (they would be rejected by the member check anyway).
+
+Run it locally with `npm --prefix server install` and `FIREBASE_SERVICE_ACCOUNT="$(cat /path/to/key.json)" ALLOWED_ORIGINS=http://127.0.0.1:5000 npm --prefix server start`. Render's free tier sleeps after ~15 minutes idle, so the first request after a pause can take up to a minute.
 
 The seeder uses reserved `example.com` test addresses and synthetic initial balances. Replace the roster with real, consented enrollment data and a legitimate funds-provisioning process before any pilot. Do not seed real account numbers, CVVs, or passwords into Firestore.
 

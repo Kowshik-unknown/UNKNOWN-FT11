@@ -1,0 +1,8 @@
+.firebase/
+__pycache__/
+backend/local_seed_credentials.json
+backend/firebase_seed_credentials.json
+backend/offlinerupee.sqlite3
+backend/offlinerupee.sqlite3-shm
+backend/offlinerupee.sqlite3-wal
+node_modules/
