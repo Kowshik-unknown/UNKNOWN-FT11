@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f5ef">
+  <title>Offlinerupee — Member Wallet</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: light; --forest:#103d30; --leaf:#d4f37c; --paper:#f2f5ef; --line:#e2e8df; --muted:#728079; }
+    * { box-sizing:border-box; }
+    body { min-height:100vh; background:radial-gradient(ellipse at 3% 0%,rgba(182,217,154,.24),transparent 34rem),radial-gradient(ellipse at 100% 8%,rgba(190,214,203,.32),transparent 35rem),var(--paper);color:#18352a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,input { font:inherit; }
+    .surface { background:rgba(255,255,255,.93);border:1px solid var(--line);box-shadow:0 18px 55px rgba(31,61,46,.055); }
+    .eyebrow { color:#718178;font-size:.67rem;font-weight:850;letter-spacing:.16em;text-transform:uppercase; }
+    .input-field { width:100%;border:1px solid #dce5db;background:#fbfcfa;color:#18352a;border-radius:.9rem;padding:.85rem 1rem;outline:none;transition:border-color .18s,box-shadow .18s; }
+    .input-field::placeholder { color:#a2afa7; }
+    .input-field:focus { border-color:#4d9a70;box-shadow:0 0 0 3px rgba(64,137,95,.11); }
+    .primary-button { background:var(--forest);color:white;font-weight:800;transition:transform .16s,background .16s,opacity .16s; }
+    .primary-button:hover:not(:disabled) { transform:translateY(-1px);background:#16533f; }
+    .primary-button:disabled { cursor:not-allowed;opacity:.45; }
+    .secondary-button { border:1px solid #dbe4d9;background:#fff;color:#345346;transition:background .16s,border-color .16s; }
+    .secondary-button:hover:not(:disabled) { background:#f3f8f1;border-color:#bfd3c0; }
+    .mono { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums; }
+    .hero-grid { background-image:linear-gradient(rgba(244,255,248,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(244,255,248,.08) 1px,transparent 1px);background-size:25px 25px; }
+    .status-dot { width:.48rem;height:.48rem;border-radius:9999px;background:#d18d3e;box-shadow:0 0 0 4px rgba(209,141,62,.13); }
+    .status-dot.online { background:#3f946b;box-shadow:0 0 0 4px rgba(63,148,107,.13); }
+    .toast-show { opacity:1!important;transform:translate(-50%,0)!important; }
+    .modal-backdrop { background:rgba(9,27,20,.48);backdrop-filter:blur(4px); }
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body class="antialiased">
+  <div class="min-h-screen">
+    <header class="border-b border-[#dfe7dd] bg-white/75 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-8">
+        <a href="/" class="flex items-center gap-3" aria-label="Offlinerupee home">
+          <span class="grid h-10 w-10 place-items-center rounded-[14px] bg-[#103d30] text-[#d4f37c] shadow-lg shadow-emerald-950/10"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 20 6v5.6c0 4.7-3.2 7.9-8 9.4-4.8-1.5-8-4.7-8-9.4V6l8-3Z" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 12.3h7M12 8.8v7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+          <span class="leading-tight"><span class="block text-sm font-black tracking-[.11em] text-[#153c2f]">OFFLINE<span class="text-[#57916a]">RUPEE</span></span><span class="mt-1 block text-[9px] font-bold tracking-[.16em] text-[#8a9990]">MEMBER WALLET</span></span>
+        </a>
+        <div id="sessionBar" class="hidden items-center gap-2 sm:gap-3">
+          <div class="hidden text-right sm:block"><div id="headerUser" class="max-w-48 truncate text-xs font-bold text-[#365447]"></div><div id="headerBank" class="max-w-48 truncate text-[10px] text-[#87948c]"></div></div>
+          <span id="networkBadge" class="inline-flex items-center gap-2 rounded-full border border-[#eadfcf] bg-[#faf5ec] px-3 py-2 text-[9px] font-extrabold tracking-[.12em] text-[#8b5e2b]"><span id="networkDot" class="status-dot"></span><span id="networkLabel">OFFLINE MODE</span></span>
+          <button id="modeToggle" type="button" class="secondary-button hidden rounded-xl px-3 py-2 text-xs font-bold sm:inline-flex">Go online</button>
+          <button id="signOutButton" type="button" class="rounded-xl px-3 py-2 text-xs font-bold text-[#718178] transition hover:bg-[#eef4ed] hover:text-[#14392d]">Sign out</button>
+        </div>
+        <div id="apiBadge" class="inline-flex items-center gap-2 rounded-full border border-[#e2e8df] bg-white px-3 py-2 text-[9px] font-extrabold tracking-[.12em] text-[#87948c]"><span class="h-2 w-2 rounded-full bg-[#abb5ad]"></span><span>CONNECTING</span></div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-4 py-7 md:px-8 md:py-10">
+      <div id="apiWarning" class="mb-6 hidden rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800" role="alert"></div>
+
+      <section id="loginView" class="grid items-center gap-7 lg:grid-cols-[1.08fr_.92fr] lg:gap-12">
+        <div class="relative min-h-[510px] overflow-hidden rounded-[2rem] bg-[#103d30] p-7 text-white shadow-2xl shadow-emerald-950/15 md:p-10">
+          <div class="hero-grid absolute inset-0 opacity-35" aria-hidden="true"></div><div class="absolute -right-16 -top-24 h-80 w-80 rounded-full border border-white/10" aria-hidden="true"></div>
+          <div class="relative flex h-full flex-col">
+            <div class="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/[.08] px-3 py-2 text-[9px] font-extrabold tracking-[.14em] text-[#e1efde]"><span class="h-1.5 w-1.5 rounded-full bg-[#d4f37c]"></span> EXISTING MEMBERS ONLY</div>
+            <div class="mt-14 max-w-xl"><p class="text-xs font-bold uppercase tracking-[.18em] text-[#bdd8c2]">Payments designed for low-connectivity places</p><h1 class="mt-4 text-4xl font-semibold leading-[1.08] tracking-[-.045em] md:text-6xl">Move value<br><span class="text-[#d4f37c]">without the signal.</span></h1><p class="mt-6 max-w-lg text-base leading-7 text-[#c5d8ce]">A local-first wallet concept for enrolled members, with peer transfers and delayed offline settlement.</p></div>
+            <div class="mt-auto pt-12"><div class="mb-5 h-px w-full bg-gradient-to-r from-transparent via-white/25 to-transparent"></div><div class="grid max-w-lg grid-cols-3 gap-4"><div><div class="text-lg font-black text-[#d4f37c]">01</div><div class="mt-1 text-xs text-[#b1c6ba]">Member access</div></div><div><div class="text-lg font-black text-[#d4f37c]">02</div><div class="mt-1 text-xs text-[#b1c6ba]">Confirm securely</div></div><div><div class="text-lg font-black text-[#d4f37c]">03</div><div class="mt-1 text-xs text-[#b1c6ba]">Reconcile later</div></div></div>
+              <div class="mt-8 rounded-2xl border border-white/10 bg-black/10 p-4 text-xs leading-5 text-[#d5e2da]"><span class="font-extrabold text-white">Sandbox balances only.</span> No bank account, card, or real funds are connected. Use only the synthetic credentials provided outside this page.</div>
+            </div>
+          </div>
+        </div>
+        <div class="surface rounded-[2rem] p-6 md:p-9">
+          <div class="eyebrow">Member authentication</div><h2 class="mt-3 text-2xl font-bold tracking-tight text-[#173c2f]">Sign in to your wallet</h2><p class="mt-2 text-sm leading-6 text-[#75847a]">Only pre-enrolled member accounts are accepted. New account registration is disabled.</p>
+          <form id="loginForm" class="mt-7 space-y-4">
+            <label class="block"><span class="mb-2 block text-xs font-bold text-[#40584b]">Email address</span><input id="emailInput" class="input-field" type="email" name="email" placeholder="member001@example.com" autocomplete="username" required></label>
+            <label class="block"><span class="mb-2 block text-xs font-bold text-[#40584b]">Password</span><input id="passwordInput" class="input-field" type="password" name="password" placeholder="Enter your assigned password" autocomplete="current-password" required></label>
+            <button id="loginSubmit" type="submit" class="primary-button mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm">Sign in securely <span aria-hidden="true">↗</span></button>
+          </form>
+          <div id="authModeNote" class="mt-7 rounded-xl border border-[#e4eae2] bg-[#f8faf7] px-4 py-3 text-xs leading-5 text-[#718178]"></div>
+          <div id="authError" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div>
+        </div>
+      </section>
+
+      <section id="walletView" class="hidden">
+        <div class="mb-7 flex flex-wrap items-end justify-between gap-4"><div><div class="eyebrow">Member wallet</div><h1 class="mt-2 text-3xl font-bold tracking-tight text-[#173c2f] md:text-4xl">Good to see you, <span id="memberNameHeading">Member</span></h1><div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#75847a]"><span id="memberBank"></span><span class="text-[#c2ccc3]">·</span><span id="memberWalletId" class="mono text-[#40584b]"></span><span class="text-[#c2ccc3]">·</span><span class="rounded-full bg-[#fbf1e2] px-2 py-1 text-[9px] font-black uppercase tracking-[.1em] text-[#9b682e]">Sandbox funds</span></div></div><button id="sendMoneyButton" type="button" class="primary-button inline-flex items-center gap-2 rounded-xl px-5 py-3.5 text-sm">Send money <span aria-hidden="true">↗</span></button></div>
+
+        <div class="grid gap-3 md:grid-cols-[1.2fr_.8fr]">
+          <article class="relative overflow-hidden rounded-[1.75rem] bg-[#103d30] p-6 text-white shadow-xl shadow-emerald-950/10 md:p-8"><div class="hero-grid absolute inset-0 opacity-25" aria-hidden="true"></div><div class="relative"><div class="flex items-center justify-between gap-3"><div class="text-xs font-bold uppercase tracking-[.15em] text-[#c1d6ca]">Available wallet balance</div><span class="rounded-full border border-white/15 bg-white/[.08] px-3 py-1.5 text-[9px] font-extrabold tracking-[.12em] text-[#d4f37c]">INR</span></div><div id="balanceValue" class="mt-4 text-4xl font-bold tracking-tight md:text-5xl">₹0.00</div><div class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-[#b8cec1]"><span>Counter <b id="counterValue" class="mono ml-1 text-white">000000</b></span><span>Member ID <b id="memberIdValue" class="mono ml-1 text-white"></b></span></div></div></article>
+          <article class="surface rounded-[1.75rem] p-6 md:p-7"><div class="eyebrow">Transfer security</div><h2 class="mt-2 text-lg font-bold text-[#173c2f]">Confirm every payment</h2><p class="mt-2 text-sm leading-6 text-[#75847a]">Recipients are shown by name and bank only. A six-digit transfer PIN is checked server-side, with failed-attempt lockout and atomic balance updates.</p><div class="mt-5 flex items-center gap-2 rounded-xl border border-[#e4eae2] bg-[#f8faf7] px-3 py-2.5 text-xs font-semibold text-[#597063]"><span class="h-2 w-2 rounded-full bg-[#4c8d60]"></span> Enrolled member network · <span id="memberCount">50</span> accounts</div></article>
+        </div>
+
+        <div class="mt-5 grid gap-5 lg:grid-cols-[1fr_.9fr]">
+          <article class="surface rounded-[1.75rem] p-5 md:p-7"><div class="flex items-center justify-between"><div><div class="eyebrow">Account details</div><h2 class="mt-2 text-lg font-bold text-[#173c2f]">Your wallet</h2></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-[#eaf4e8] text-[#2e7954]">✓</span></div><div class="mt-5 grid gap-3 sm:grid-cols-2"><div class="rounded-xl border border-[#e6ebe4] bg-[#fbfcfa] p-4"><div class="text-[10px] font-extrabold uppercase tracking-[.12em] text-[#87948c]">Bank</div><div id="accountBankName" class="mt-2 text-sm font-bold text-[#294b3b]"></div></div><div class="rounded-xl border border-[#e6ebe4] bg-[#fbfcfa] p-4"><div class="text-[10px] font-extrabold uppercase tracking-[.12em] text-[#87948c]">Wallet reference</div><div id="accountWalletId" class="mono mt-2 text-sm font-bold text-[#294b3b]"></div></div></div><p class="mt-4 text-xs leading-5 text-[#87948c]">No bank account number is displayed in the app. These are enrolled sandbox profiles; bank names do not indicate a live bank connection.</p></article>
+          <article class="surface rounded-[1.75rem] p-5 md:p-7"><div class="flex items-center justify-between"><div><div class="eyebrow">Recent activity</div><h2 class="mt-2 text-lg font-bold text-[#173c2f]">Transfers</h2></div><button id="refreshHistoryButton" type="button" class="secondary-button rounded-lg px-3 py-2 text-xs font-bold">Refresh</button></div><div id="historyList" class="mt-4 space-y-2"></div></article>
+        </div>
+
+        <details id="offlineSection" class="surface mt-5 rounded-[1.75rem] p-5 md:p-7"><summary class="cursor-pointer list-none"><div class="flex items-center justify-between"><div><div class="eyebrow">Offline payment engine</div><h2 class="mt-2 text-lg font-bold text-[#173c2f]">Merchant payment queue</h2><p class="mt-1 text-xs text-[#87948c]">Optional local settlement flow · signed on this device</p></div><span id="offlineSummary" class="rounded-full border border-[#e6ebe4] bg-[#fbfcfa] px-3 py-2 text-xs font-bold text-[#597063]">0 pending</span></div></summary><div id="offlineUnavailable" class="mt-5 hidden rounded-xl border border-[#eadfcf] bg-[#fffaf0] px-4 py-3 text-sm text-[#7b5428]">This account is using Firebase mode. A hardware-backed offline signature and issuer settlement adapter must be provisioned before enabling local spend.</div><div id="offlineLocalTools" class="mt-5 grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><form id="offlinePaymentForm" class="space-y-3"><label class="block"><span class="mb-2 block text-xs font-bold text-[#40584b]">Merchant reference</span><input id="merchantInput" class="input-field" value="MERCHANT-001" maxlength="120" required></label><label class="block"><span class="mb-2 block text-xs font-bold text-[#40584b]">Amount in rupees</span><input id="offlineAmountInput" class="input-field" type="number" min="0.01" step="0.01" placeholder="0.00" required></label><button id="offlinePaymentSubmit" type="submit" class="primary-button w-full rounded-xl px-4 py-3 text-sm">Create signed offline payment</button><div id="offlineError" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div></form><div><div class="flex items-center justify-between gap-3"><p class="text-xs leading-5 text-[#75847a]">Pending payments remain on this device until synchronization.</p><button id="syncButton" type="button" class="primary-button shrink-0 rounded-xl px-4 py-3 text-xs">Reconnect &amp; sync</button></div><div id="syncResult" class="mt-3 hidden rounded-xl border px-4 py-3 text-sm" role="status" aria-live="polite"></div><div id="queueList" class="mt-3 space-y-2"></div><div class="mt-3 flex items-center justify-between gap-3 border-t border-[#e8ede7] pt-3"><span id="queueSummary" class="text-xs text-[#87948c]">No pending payments</span><button id="discardRejectedButton" type="button" class="hidden rounded-lg border border-red-200 px-3 py-2 text-[11px] font-bold text-red-800">Discard rejected</button></div></div></div></details>
+      </section>
+
+      <footer class="mt-10 border-t border-[#dfe7dd] pt-5 text-xs leading-5 text-[#87948c]"><div class="flex flex-wrap items-center justify-between gap-3"><span>Offlinerupee · sandbox member network · no real funds</span><span>Never share your transfer PIN or login password.</span></div></footer>
+    </main>
+  </div>
+
+  <div id="transferModal" class="fixed inset-0 z-40 hidden items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
+    <div class="modal-backdrop absolute inset-0" data-close-modal="true"></div>
+    <div class="surface relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem]">
+      <div class="flex items-start justify-between gap-4 border-b border-[#e8ede7] px-5 py-4 sm:px-7 sm:py-5"><div><div class="eyebrow">Member transfer</div><h2 id="transferTitle" class="mt-1 text-xl font-bold text-[#173c2f]">Send money</h2><p id="transferSubtitle" class="mt-1 text-xs text-[#87948c]">Select a recipient. Only name and bank are shown.</p></div><button id="closeTransferModal" type="button" class="grid h-9 w-9 place-items-center rounded-lg text-xl text-[#718178] transition hover:bg-[#f1f5ef]" aria-label="Close">×</button></div>
+      <div id="recipientStep" class="min-h-0 overflow-y-auto px-5 py-5 sm:px-7"><label class="block"><span class="sr-only">Search enrolled members</span><input id="recipientSearch" class="input-field" type="search" placeholder="Search by name or bank…" autocomplete="off"></label><div id="recipientLoading" class="hidden py-8 text-center text-sm text-[#718178]">Loading enrolled members…</div><div id="recipientError" class="mt-3 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div><div id="recipientList" class="mt-3 grid gap-2 sm:grid-cols-2"></div></div>
+      <form id="transferForm" class="hidden min-h-0 overflow-y-auto px-5 py-5 sm:px-7">
+        <button id="backToRecipients" type="button" class="mb-4 text-xs font-bold text-[#557260] hover:text-[#103d30]">← Choose another recipient</button>
+        <div id="selectedRecipientCard" class="rounded-2xl border border-[#dfe8dc] bg-[#f7faf5] p-4"></div>
+        <label class="mt-5 block"><span class="mb-2 block text-xs font-bold text-[#40584b]">Transfer amount</span><div class="relative"><span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#88968d]">₹</span><input id="transferAmountInput" class="input-field pl-9" type="number" min="0.01" step="0.01" max="25000" placeholder="0.00" required></div><span class="mt-2 block text-[10px] text-[#87948c]">Maximum per transfer: ₹25,000.00</span></label>
+        <label class="mt-4 block"><span class="mb-2 block text-xs font-bold text-[#40584b]">Six-digit transfer PIN</span><input id="transferPinInput" class="input-field mono tracking-[.35em]" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{6}" placeholder="••••••" required><span class="mt-2 block text-[10px] text-[#87948c]">PIN is verified server-side and is never stored in browser storage.</span></label>
+        <div id="transferError" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div>
+        <button id="confirmTransferButton" type="submit" class="primary-button mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm">Confirm transfer <span aria-hidden="true">→</span></button>
+      </form>
+      <div id="transferSuccess" class="hidden px-5 py-8 text-center sm:px-7"><div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#eaf4e8] text-2xl text-[#2e7954]">✓</div><h3 class="mt-4 text-xl font-bold text-[#173c2f]">Transfer complete</h3><p id="transferSuccessText" class="mt-2 text-sm leading-6 text-[#75847a]"></p><button id="doneTransferButton" type="button" class="primary-button mt-6 rounded-xl px-6 py-3 text-sm">Done</button></div>
+    </div>
+  </div>
+
+  <div id="toast" class="pointer-events-none fixed bottom-5 left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 translate-y-3 rounded-xl border border-[#dce5db] bg-[#103d30] px-4 py-3 text-sm text-white opacity-0 shadow-xl shadow-emerald-950/20 transition duration-200" role="status" aria-live="polite"></div>
+  <script src="/firebase-config.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

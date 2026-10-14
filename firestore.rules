@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // A member may read only their own profile. All balance and status changes
+    // must go through the authenticated Cloud Functions using Admin SDK.
+    match /members/{memberId} {
+      allow get: if signedIn() && request.auth.uid == memberId;
+      allow list, create, update, delete: if false;
+    }
+
+    // PIN salts/hashes and lockout state are server-only.
+    match /memberSecrets/{memberId} {
+      allow read, write: if false;
+    }
+
+    // Transfer records are read through listTransfers callable so callers only
+    // receive redacted counterpart details. No direct client writes are allowed.
+    match /transfers/{transferId} {
+      allow read, write: if false;
+    }
+
+    // Deny every document not explicitly allowed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

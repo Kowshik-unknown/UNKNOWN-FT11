@@ -1,0 +1,455 @@
+{
+  "notice": "Synthetic, non-real test members; balances are sandbox values. No account numbers, CVVs, or passwords are stored here.",
+  "members": [
+    {
+      "memberId": "member-001",
+      "walletId": "OW-MEMBER-001",
+      "email": "member001@example.com",
+      "displayName": "Aarav Sharma",
+      "bankId": "public-sector:canara-bank",
+      "bankName": "Canara Bank",
+      "initialBalancePaise": 2082700
+    },
+    {
+      "memberId": "member-002",
+      "walletId": "OW-MEMBER-002",
+      "email": "member002@example.com",
+      "displayName": "Aadhya Iyer",
+      "bankId": "private-sector:karur-vysya-bank-limited",
+      "bankName": "Karur Vysya Bank Limited",
+      "initialBalancePaise": 2665400
+    },
+    {
+      "memberId": "member-003",
+      "walletId": "OW-MEMBER-003",
+      "email": "member003@example.com",
+      "displayName": "Arjun Menon",
+      "bankId": "private-sector:karnataka-bank-limited",
+      "bankName": "Karnataka Bank Limited",
+      "initialBalancePaise": 3248100
+    },
+    {
+      "memberId": "member-004",
+      "walletId": "OW-MEMBER-004",
+      "email": "member004@example.com",
+      "displayName": "Ananya Patel",
+      "bankId": "public-sector:bank-of-india",
+      "bankName": "Bank of India",
+      "initialBalancePaise": 3830800
+    },
+    {
+      "memberId": "member-005",
+      "walletId": "OW-MEMBER-005",
+      "email": "member005@example.com",
+      "displayName": "Vivaan Reddy",
+      "bankId": "private-sector:dhanlaxmi-bank-limited",
+      "bankName": "Dhanlaxmi Bank Limited",
+      "initialBalancePaise": 4413500
+    },
+    {
+      "memberId": "member-006",
+      "walletId": "OW-MEMBER-006",
+      "email": "member006@example.com",
+      "displayName": "Diya Nair",
+      "bankId": "private-sector:south-indian-bank-limited",
+      "bankName": "South Indian Bank Limited",
+      "initialBalancePaise": 4996200
+    },
+    {
+      "memberId": "member-007",
+      "walletId": "OW-MEMBER-007",
+      "email": "member007@example.com",
+      "displayName": "Ishaan Gupta",
+      "bankId": "public-sector:state-bank-of-india",
+      "bankName": "State Bank of India",
+      "initialBalancePaise": 5578900
+    },
+    {
+      "memberId": "member-008",
+      "walletId": "OW-MEMBER-008",
+      "email": "member008@example.com",
+      "displayName": "Meera Krishnan",
+      "bankId": "public-sector:indian-bank",
+      "bankName": "Indian Bank",
+      "initialBalancePaise": 6161600
+    },
+    {
+      "memberId": "member-009",
+      "walletId": "OW-MEMBER-009",
+      "email": "member009@example.com",
+      "displayName": "Kabir Rao",
+      "bankId": "small-finance:ujjivan-small-finance-bank-limited",
+      "bankName": "Ujjivan Small Finance Bank Limited",
+      "initialBalancePaise": 6744300
+    },
+    {
+      "memberId": "member-010",
+      "walletId": "OW-MEMBER-010",
+      "email": "member010@example.com",
+      "displayName": "Saanvi Desai",
+      "bankId": "private-sector:city-union-bank-limited",
+      "bankName": "City Union Bank Limited",
+      "initialBalancePaise": 7327000
+    },
+    {
+      "memberId": "member-011",
+      "walletId": "OW-MEMBER-011",
+      "email": "member011@example.com",
+      "displayName": "Aditya Verma",
+      "bankId": "public-sector:central-bank-of-india",
+      "bankName": "Central Bank of India",
+      "initialBalancePaise": 7909700
+    },
+    {
+      "memberId": "member-012",
+      "walletId": "OW-MEMBER-012",
+      "email": "member012@example.com",
+      "displayName": "Kavya Srinivasan",
+      "bankId": "payments:nsdl-payments-bank-limited",
+      "bankName": "NSDL Payments Bank Limited",
+      "initialBalancePaise": 8492400
+    },
+    {
+      "memberId": "member-013",
+      "walletId": "OW-MEMBER-013",
+      "email": "member013@example.com",
+      "displayName": "Reyansh Shah",
+      "bankId": "payments:jio-payments-bank-limited",
+      "bankName": "Jio Payments Bank Limited",
+      "initialBalancePaise": 9075100
+    },
+    {
+      "memberId": "member-014",
+      "walletId": "OW-MEMBER-014",
+      "email": "member014@example.com",
+      "displayName": "Anika Pillai",
+      "bankId": "public-sector:bank-of-maharashtra",
+      "bankName": "Bank of Maharashtra",
+      "initialBalancePaise": 9657800
+    },
+    {
+      "memberId": "member-015",
+      "walletId": "OW-MEMBER-015",
+      "email": "member015@example.com",
+      "displayName": "Vihaan Kulkarni",
+      "bankId": "small-finance:esaf-small-finance-bank-limited",
+      "bankName": "ESAF Small Finance Bank Limited",
+      "initialBalancePaise": 1740500
+    },
+    {
+      "memberId": "member-016",
+      "walletId": "OW-MEMBER-016",
+      "email": "member016@example.com",
+      "displayName": "Tara Banerjee",
+      "bankId": "private-sector:bandhan-bank-limited",
+      "bankName": "Bandhan Bank Limited",
+      "initialBalancePaise": 2323200
+    },
+    {
+      "memberId": "member-017",
+      "walletId": "OW-MEMBER-017",
+      "email": "member017@example.com",
+      "displayName": "Advait Joshi",
+      "bankId": "payments:india-post-payments-bank-limited",
+      "bankName": "India Post Payments Bank Limited",
+      "initialBalancePaise": 2905900
+    },
+    {
+      "memberId": "member-018",
+      "walletId": "OW-MEMBER-018",
+      "email": "member018@example.com",
+      "displayName": "Myra Choudhary",
+      "bankId": "private-sector:jammu-kashmir-bank-limited",
+      "bankName": "Jammu & Kashmir Bank Limited",
+      "initialBalancePaise": 3488600
+    },
+    {
+      "memberId": "member-019",
+      "walletId": "OW-MEMBER-019",
+      "email": "member019@example.com",
+      "displayName": "Kian Das",
+      "bankId": "private-sector:axis-bank-limited",
+      "bankName": "Axis Bank Limited",
+      "initialBalancePaise": 4071300
+    },
+    {
+      "memberId": "member-020",
+      "walletId": "OW-MEMBER-020",
+      "email": "member020@example.com",
+      "displayName": "Nisha Mukherjee",
+      "bankId": "private-sector:federal-bank-limited",
+      "bankName": "Federal Bank Limited",
+      "initialBalancePaise": 4654000
+    },
+    {
+      "memberId": "member-021",
+      "walletId": "OW-MEMBER-021",
+      "email": "member021@example.com",
+      "displayName": "Rohan Kapoor",
+      "bankId": "small-finance:utkarsh-small-finance-bank-limited",
+      "bankName": "Utkarsh Small Finance Bank Limited",
+      "initialBalancePaise": 5236700
+    },
+    {
+      "memberId": "member-022",
+      "walletId": "OW-MEMBER-022",
+      "email": "member022@example.com",
+      "displayName": "Ishita Bose",
+      "bankId": "private-sector:dcb-bank-limited",
+      "bankName": "DCB Bank Limited",
+      "initialBalancePaise": 5819400
+    },
+    {
+      "memberId": "member-023",
+      "walletId": "OW-MEMBER-023",
+      "email": "member023@example.com",
+      "displayName": "Dev Malhotra",
+      "bankId": "small-finance:shivalik-small-finance-bank-limited",
+      "bankName": "Shivalik Small Finance Bank Limited",
+      "initialBalancePaise": 6402100
+    },
+    {
+      "memberId": "member-024",
+      "walletId": "OW-MEMBER-024",
+      "email": "member024@example.com",
+      "displayName": "Leela Subramanian",
+      "bankId": "public-sector:uco-bank",
+      "bankName": "UCO Bank",
+      "initialBalancePaise": 6984800
+    },
+    {
+      "memberId": "member-025",
+      "walletId": "OW-MEMBER-025",
+      "email": "member025@example.com",
+      "displayName": "Ayaan Bhat",
+      "bankId": "private-sector:yes-bank-limited",
+      "bankName": "YES Bank Limited",
+      "initialBalancePaise": 7567500
+    },
+    {
+      "memberId": "member-026",
+      "walletId": "OW-MEMBER-026",
+      "email": "member026@example.com",
+      "displayName": "Riya Fernandes",
+      "bankId": "private-sector:csb-bank-limited",
+      "bankName": "CSB Bank Limited",
+      "initialBalancePaise": 8150200
+    },
+    {
+      "memberId": "member-027",
+      "walletId": "OW-MEMBER-027",
+      "email": "member027@example.com",
+      "displayName": "Neil Thomas",
+      "bankId": "private-sector:kotak-mahindra-bank-limited",
+      "bankName": "Kotak Mahindra Bank Limited",
+      "initialBalancePaise": 8732900
+    },
+    {
+      "memberId": "member-028",
+      "walletId": "OW-MEMBER-028",
+      "email": "member028@example.com",
+      "displayName": "Pooja Raman",
+      "bankId": "payments:airtel-payments-bank-limited",
+      "bankName": "Airtel Payments Bank Limited",
+      "initialBalancePaise": 9315600
+    },
+    {
+      "memberId": "member-029",
+      "walletId": "OW-MEMBER-029",
+      "email": "member029@example.com",
+      "displayName": "Krish Sethi",
+      "bankId": "public-sector:bank-of-baroda",
+      "bankName": "Bank of Baroda",
+      "initialBalancePaise": 9898300
+    },
+    {
+      "memberId": "member-030",
+      "walletId": "OW-MEMBER-030",
+      "email": "member030@example.com",
+      "displayName": "Amara Sen",
+      "bankId": "public-sector:indian-overseas-bank",
+      "bankName": "Indian Overseas Bank",
+      "initialBalancePaise": 1981000
+    },
+    {
+      "memberId": "member-031",
+      "walletId": "OW-MEMBER-031",
+      "email": "member031@example.com",
+      "displayName": "Samar Naidu",
+      "bankId": "public-sector:punjab-sind-bank",
+      "bankName": "Punjab & Sind Bank",
+      "initialBalancePaise": 2563700
+    },
+    {
+      "memberId": "member-032",
+      "walletId": "OW-MEMBER-032",
+      "email": "member032@example.com",
+      "displayName": "Anvi Ghosh",
+      "bankId": "small-finance:equitas-small-finance-bank-limited",
+      "bankName": "Equitas Small Finance Bank Limited",
+      "initialBalancePaise": 3146400
+    },
+    {
+      "memberId": "member-033",
+      "walletId": "OW-MEMBER-033",
+      "email": "member033@example.com",
+      "displayName": "Dhruv Nambiar",
+      "bankId": "private-sector:rbl-bank-limited",
+      "bankName": "RBL Bank Limited",
+      "initialBalancePaise": 3729100
+    },
+    {
+      "memberId": "member-034",
+      "walletId": "OW-MEMBER-034",
+      "email": "member034@example.com",
+      "displayName": "Isha Mehta",
+      "bankId": "private-sector:hdfc-bank-limited",
+      "bankName": "HDFC Bank Limited",
+      "initialBalancePaise": 4311800
+    },
+    {
+      "memberId": "member-035",
+      "walletId": "OW-MEMBER-035",
+      "email": "member035@example.com",
+      "displayName": "Rudra Chakraborty",
+      "bankId": "private-sector:nainital-bank-limited",
+      "bankName": "Nainital Bank Limited",
+      "initialBalancePaise": 4894500
+    },
+    {
+      "memberId": "member-036",
+      "walletId": "OW-MEMBER-036",
+      "email": "member036@example.com",
+      "displayName": "Siya Rao",
+      "bankId": "local-area:coastal-local-area-bank-limited",
+      "bankName": "Coastal Local Area Bank Limited",
+      "initialBalancePaise": 5477200
+    },
+    {
+      "memberId": "member-037",
+      "walletId": "OW-MEMBER-037",
+      "email": "member037@example.com",
+      "displayName": "Arnav Deshpande",
+      "bankId": "local-area:krishna-bhima-samruddhi-local-area-bank-limited",
+      "bankName": "Krishna Bhima Samruddhi Local Area Bank Limited",
+      "initialBalancePaise": 6059900
+    },
+    {
+      "memberId": "member-038",
+      "walletId": "OW-MEMBER-038",
+      "email": "member038@example.com",
+      "displayName": "Mahi Menon",
+      "bankId": "small-finance:jana-small-finance-bank-limited",
+      "bankName": "Jana Small Finance Bank Limited",
+      "initialBalancePaise": 6642600
+    },
+    {
+      "memberId": "member-039",
+      "walletId": "OW-MEMBER-039",
+      "email": "member039@example.com",
+      "displayName": "Kunal Sinha",
+      "bankId": "small-finance:au-small-finance-bank-limited",
+      "bankName": "AU Small Finance Bank Limited",
+      "initialBalancePaise": 7225300
+    },
+    {
+      "memberId": "member-040",
+      "walletId": "OW-MEMBER-040",
+      "email": "member040@example.com",
+      "displayName": "Veda Narayan",
+      "bankId": "private-sector:icici-bank-limited",
+      "bankName": "ICICI Bank Limited",
+      "initialBalancePaise": 7808000
+    },
+    {
+      "memberId": "member-041",
+      "walletId": "OW-MEMBER-041",
+      "email": "member041@example.com",
+      "displayName": "Yash Prasad",
+      "bankId": "private-sector:idfc-first-bank-limited",
+      "bankName": "IDFC FIRST Bank Limited",
+      "initialBalancePaise": 8390700
+    },
+    {
+      "memberId": "member-042",
+      "walletId": "OW-MEMBER-042",
+      "email": "member042@example.com",
+      "displayName": "Aditi Raghavan",
+      "bankId": "small-finance:slice-small-finance-bank-limited",
+      "bankName": "slice Small Finance Bank Limited",
+      "initialBalancePaise": 8973400
+    },
+    {
+      "memberId": "member-043",
+      "walletId": "OW-MEMBER-043",
+      "email": "member043@example.com",
+      "displayName": "Shaurya Kaur",
+      "bankId": "private-sector:indusind-bank-limited",
+      "bankName": "IndusInd Bank Limited",
+      "initialBalancePaise": 9556100
+    },
+    {
+      "memberId": "member-044",
+      "walletId": "OW-MEMBER-044",
+      "email": "member044@example.com",
+      "displayName": "Kiara Dutta",
+      "bankId": "private-sector:idbi-bank-limited",
+      "bankName": "IDBI Bank Limited",
+      "initialBalancePaise": 1638800
+    },
+    {
+      "memberId": "member-045",
+      "walletId": "OW-MEMBER-045",
+      "email": "member045@example.com",
+      "displayName": "Manav Shetty",
+      "bankId": "small-finance:suryoday-small-finance-bank-limited",
+      "bankName": "Suryoday Small Finance Bank Limited",
+      "initialBalancePaise": 2221500
+    },
+    {
+      "memberId": "member-046",
+      "walletId": "OW-MEMBER-046",
+      "email": "member046@example.com",
+      "displayName": "Aarush Mehra",
+      "bankId": "private-sector:tamilnad-mercantile-bank-limited",
+      "bankName": "Tamilnad Mercantile Bank Limited",
+      "initialBalancePaise": 2804200
+    },
+    {
+      "memberId": "member-047",
+      "walletId": "OW-MEMBER-047",
+      "email": "member047@example.com",
+      "displayName": "Prisha Venkatesh",
+      "bankId": "public-sector:punjab-national-bank",
+      "bankName": "Punjab National Bank",
+      "initialBalancePaise": 3386900
+    },
+    {
+      "memberId": "member-048",
+      "walletId": "OW-MEMBER-048",
+      "email": "member048@example.com",
+      "displayName": "Zoya Khan",
+      "bankId": "small-finance:unity-small-finance-bank-limited",
+      "bankName": "Unity Small Finance Bank Limited",
+      "initialBalancePaise": 3969600
+    },
+    {
+      "memberId": "member-049",
+      "walletId": "OW-MEMBER-049",
+      "email": "member049@example.com",
+      "displayName": "Nikhil Varma",
+      "bankId": "public-sector:union-bank-of-india",
+      "bankName": "Union Bank of India",
+      "initialBalancePaise": 4552300
+    },
+    {
+      "memberId": "member-050",
+      "walletId": "OW-MEMBER-050",
+      "email": "member050@example.com",
+      "displayName": "Aisha Qureshi",
+      "bankId": "small-finance:capital-small-finance-bank-limited",
+      "bankName": "Capital Small Finance Bank Limited",
+      "initialBalancePaise": 5135000
+    }
+  ]
+}

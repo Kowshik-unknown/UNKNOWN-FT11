@@ -1,0 +1,1 @@
+"""Offlinerupee FastAPI prototype package."""
